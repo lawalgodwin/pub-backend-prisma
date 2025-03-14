@@ -1,0 +1,216 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id             String              @id @default(uuid())
+  name                String
+  email               String              @unique
+  phone_number        String
+  password_hash       String
+  default_location_id String?
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  locations           Location[]
+  parcels_sent        Parcel[]            @relation("Sender")
+  parcels_received    Parcel[]            @relation("Receiver")
+  cards               Card[]
+  wallet_transactions WalletTransaction[]
+  orders              Order[]
+  Driver              Driver?
+  Merchant            Merchant?
+}
+
+model Location {
+  location_id String     @id @default(uuid())
+  address     String
+  latitude    Decimal
+  longitude   Decimal
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  user        User?      @relation(fields: [userUser_id], references: [user_id])
+  lockers     Locker[]
+  userUser_id String?
+  Merchant    Merchant[]
+}
+
+model Locker {
+  locker_id           String   @id @default(uuid())
+  location_id         String
+  locker_code         String
+  is_available        Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  location            Location @relation(fields: [location_id], references: [location_id])
+  pickup_parcels      Parcel[] @relation("PickupLocker")
+  destination_parcels Parcel[] @relation("DestinationLocker")
+}
+
+model Parcel {
+  parcel_id             String             @id @default(uuid())
+  sender_id             String
+  receiver_id           String
+  pickup_locker_id      String
+  destination_locker_id String
+  weight                Decimal
+  type                  ParcelType
+  insurance_package     Boolean            @default(false)
+  parcel_value          Decimal
+  insurance_amount      Decimal
+  tracking_id           String             @unique
+  status                ParcelStatus       @default(CREATED)
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+  sender                User               @relation("Sender", fields: [sender_id], references: [user_id])
+  receiver              User               @relation("Receiver", fields: [receiver_id], references: [user_id])
+  pickup_locker         Locker             @relation("PickupLocker", fields: [pickup_locker_id], references: [locker_id])
+  destination_locker    Locker             @relation("DestinationLocker", fields: [destination_locker_id], references: [locker_id])
+  delivery_updates      DeliveryUpdate[]
+  ParcelAssignment      ParcelAssignment[]
+}
+
+model DeliveryUpdate {
+  delivery_update_id String       @id @default(uuid())
+  parcel_id          String
+  status             ParcelStatus
+  updated_at         DateTime     @default(now())
+  parcel             Parcel       @relation(fields: [parcel_id], references: [parcel_id])
+}
+
+model Driver {
+  driver_id          String             @id @default(uuid())
+  user_id            String             @unique
+  vehicle_info       String
+  license_number     String
+  status             DriverStatus       @default(ACTIVE)
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+  user               User               @relation(fields: [user_id], references: [user_id])
+  parcel_assignments ParcelAssignment[]
+}
+
+model Merchant {
+  merchant_id    String   @id @default(uuid())
+  user_id        String   @unique
+  business_name  String
+  contact_person String
+  contact_email  String
+  contact_phone  String
+  address_id     String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  user           User     @relation(fields: [user_id], references: [user_id])
+  location       Location @relation(fields: [address_id], references: [location_id])
+  orders         Order[]
+}
+
+model Card {
+  card_id     String   @id @default(uuid())
+  user_id     String
+  card_number String
+  expiry_date String
+  cvv         String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  user        User     @relation(fields: [user_id], references: [user_id])
+}
+
+model WalletTransaction {
+  transaction_id   String          @id @default(uuid())
+  user_id          String
+  amount           Decimal
+  transaction_type TransactionType
+  transaction_date DateTime        @default(now())
+  payment_method   PaymentMethod
+  user             User            @relation(fields: [user_id], references: [user_id])
+}
+
+model Order {
+  order_id         String      @id @default(uuid())
+  user_id          String
+  merchant_id      String?
+  order_date       DateTime    @default(now())
+  total_cost       Decimal
+  delivery_cost    Decimal
+  insurance_amount Decimal
+  user             User        @relation(fields: [user_id], references: [user_id])
+  merchant         Merchant?   @relation(fields: [merchant_id], references: [merchant_id])
+  order_items      OrderItem[]
+}
+
+model OrderItem {
+  order_item_id String @id @default(uuid())
+  order_id      String
+  item_id       String
+  quantity      Int
+  order         Order  @relation(fields: [order_id], references: [order_id])
+  item          Item   @relation(fields: [item_id], references: [item_id])
+}
+
+model Item {
+  item_id     String      @id @default(uuid())
+  name        String
+  description String
+  price       Decimal
+  size        String
+  weight      Decimal
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+  order_items OrderItem[]
+}
+
+model ParcelAssignment {
+  assignment_id String           @id @default(uuid())
+  parcel_id     String
+  driver_id     String
+  assigned_at   DateTime         @default(now())
+  status        AssignmentStatus @default(ASSIGNED)
+  parcel        Parcel           @relation(fields: [parcel_id], references: [parcel_id])
+  driver        Driver           @relation(fields: [driver_id], references: [driver_id])
+}
+
+enum ParcelType {
+  FRAGILE
+  DURABLE
+}
+
+enum ParcelStatus {
+  CREATED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+}
+
+enum DriverStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
